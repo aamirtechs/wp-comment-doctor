@@ -104,6 +104,30 @@ DEFAULT_MIN_WORDS = 3
 OLD_POST_DAYS = 365
 
 
+RULE_ACTIONS = {
+    "spam-phrase": "Mark as spam or trash it.",
+    "too-many-links": "Mark as spam or trash it.",
+    "duplicate-comment": "Trash the duplicate comment.",
+    "duplicate-comment-id": "Remove the duplicate row from the export.",
+    "missing-comment-id": "Fix or remove the row so the comment can be tracked.",
+    "missing-author": "Add the author or remove the comment.",
+    "missing-email": "Add the author email or remove the comment.",
+    "invalid-email": "Fix the author email or remove the comment.",
+    "invalid-date": "Fix the comment date.",
+    "future-date": "Fix the comment date.",
+    "unknown-status": "Fix the comment status.",
+    "pingback-mixed": "Separate or remove the pingback/trackback.",
+    "empty-content": "Remove the empty comment.",
+    "keyword-stuffing": "Review and mark as spam or trash it.",
+    "gibberish-content": "Review and mark as spam or trash it.",
+    "thin-comment": "Review and approve or trash it.",
+    "stale-pending": "Approve or trash it.",
+    "old-post-comment": "Review and approve, close, or trash it.",
+    "no-approved-ever": "Review the author's comments before approving.",
+    "malformed-row": "Fix the row in the CSV export.",
+}
+
+
 class Finding:
     """One audit finding for one comment or for the site."""
 
@@ -112,15 +136,18 @@ class Finding:
         self.rule = rule
         self.severity = severity
         self.message = message
+        self.action = RULE_ACTIONS.get(rule, "Review the comment.")
 
     def as_dict(self):
         """Return the finding as a plain dict."""
         return {"comment_id": self.comment_id, "rule": self.rule,
-                "severity": self.severity, "message": self.message}
+                "severity": self.severity, "message": self.message,
+                "action": self.action}
 
     def __str__(self):
-        return "%s [%s] %s: %s" % (self.severity.upper(), self.rule,
-                                   self.comment_id, self.message)
+        return "%s [%s] %s: %s Action: %s" % (
+            self.severity.upper(), self.rule, self.comment_id,
+            self.message, self.action)
 
 
 def parse_date(value):
@@ -489,10 +516,10 @@ def format_text(report):
     summary = report["summary"]
     lines = []
     for finding in report["findings"]:
-        lines.append("%s [%s] %s: %s"
+        lines.append("%s [%s] %s: %s Action: %s"
                      % (finding["severity"].upper(),
                         finding["rule"], finding["comment_id"],
-                        finding["message"]))
+                        finding["message"], finding["action"]))
     if report["posts"]:
         lines.append("")
         lines.append("Per post:")

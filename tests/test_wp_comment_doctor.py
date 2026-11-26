@@ -522,7 +522,24 @@ class TestOutput(unittest.TestCase):
         report = analyze([good_row(author="")])
         finding = report["findings"][0]
         self.assertEqual(set(finding),
-                         {"comment_id", "rule", "severity", "message"})
+                         {"comment_id", "rule", "severity",
+                          "message", "action"})
+
+    def test_every_rule_has_action(self):
+        for rule in doctor.RULE_ACTIONS:
+            self.assertTrue(doctor.RULE_ACTIONS[rule])
+        report = doctor.analyze_file(
+            os.path.join(os.path.dirname(os.path.dirname(
+                os.path.abspath(__file__))),
+                "examples", "comments.csv"),
+            as_of=AS_OF)
+        seen = set()
+        for finding in report["findings"]:
+            seen.add(finding["rule"])
+            self.assertEqual(finding["action"],
+                             doctor.RULE_ACTIONS[finding["rule"]])
+        self.assertIn("stale-pending", seen)
+        self.assertIn("spam-phrase", seen)
 
 
 class TestCli(unittest.TestCase):
