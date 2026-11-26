@@ -205,8 +205,31 @@ function resolveColumns(header) {
   return columns;
 }
 function cmpStr(a, b) { return a < b ? -1 : (a > b ? 1 : 0); }
+var RULE_ACTIONS = {
+  "spam-phrase": "Mark as spam or trash it.",
+  "too-many-links": "Mark as spam or trash it.",
+  "duplicate-comment": "Trash the duplicate comment.",
+  "duplicate-comment-id": "Remove the duplicate row from the export.",
+  "missing-comment-id": "Fix or remove the row so the comment can be tracked.",
+  "missing-author": "Add the author or remove the comment.",
+  "missing-email": "Add the author email or remove the comment.",
+  "invalid-email": "Fix the author email or remove the comment.",
+  "invalid-date": "Fix the comment date.",
+  "future-date": "Fix the comment date.",
+  "unknown-status": "Fix the comment status.",
+  "pingback-mixed": "Separate or remove the pingback/trackback.",
+  "empty-content": "Remove the empty comment.",
+  "keyword-stuffing": "Review and mark as spam or trash it.",
+  "gibberish-content": "Review and mark as spam or trash it.",
+  "thin-comment": "Review and approve or trash it.",
+  "stale-pending": "Approve or trash it.",
+  "old-post-comment": "Review and approve, close, or trash it.",
+  "no-approved-ever": "Review the author's comments before approving.",
+  "malformed-row": "Fix the row in the CSV export."
+};
 function Finding(commentId, rule, severity, message) {
-  return { comment_id: commentId, rule: rule, severity: severity, message: message };
+  return { comment_id: commentId, rule: rule, severity: severity, message: message,
+           action: RULE_ACTIONS[rule] || "Review the comment." };
 }
 function makeComment(row, columns) {
   function get(name) {
@@ -403,7 +426,7 @@ function analyze(text, asOf, maxLinks, maxAgeDays, minWords) {
 function formatText(report) {
   var lines = [];
   report.findings.forEach(function (f) {
-    lines.push(f.severity.toUpperCase() + " [" + f.rule + "] " + f.comment_id + ": " + f.message);
+    lines.push(f.severity.toUpperCase() + " [" + f.rule + "] " + f.comment_id + ": " + f.message + " Action: " + f.action);
   });
   if (report.posts.length) {
     lines.push("");
