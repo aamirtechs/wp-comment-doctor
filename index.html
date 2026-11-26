@@ -1,0 +1,506 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>WP Comment Doctor - AamirTechs</title>
+<style>
+:root{--navy:#0b1f3a;--gold:#d4a72c;--bg:#f6f8fb;--ink:#1c2733;--muted:#5b6b7c;--line:#d9e1ea}
+*{box-sizing:border-box}
+body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;background:var(--bg);color:var(--ink)}
+header{background:var(--navy);color:#fff;padding:28px 20px;border-bottom:4px solid var(--gold)}
+header .wrap{max-width:880px;margin:0 auto}
+header h1{margin:0 0 6px;font-size:1.6rem}
+header p{margin:0;color:#c8d4e4}
+main{max-width:880px;margin:24px auto;padding:0 20px}
+.card{background:#fff;border:1px solid var(--line);border-radius:12px;padding:20px;box-shadow:0 1px 3px rgba(11,31,58,.08)}
+label{display:block;font-weight:600;margin:14px 0 6px}
+.card>label:first-child{margin-top:0}
+textarea{width:100%;min-height:180px;padding:10px;border:1px solid var(--line);border-radius:8px;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:.85rem}
+input[type=text],input[type=number],select{padding:8px 10px;border:1px solid var(--line);border-radius:8px;font-size:.95rem;width:100%}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-top:4px}
+.grid label{margin:0 0 6px}
+.row{display:flex;flex-wrap:wrap;gap:10px;margin-top:16px}
+button{background:var(--navy);color:#fff;border:0;border-radius:8px;padding:10px 18px;font-size:.95rem;cursor:pointer}
+button.alt{background:#fff;color:var(--navy);border:1px solid var(--navy)}
+button.gold{background:var(--gold);color:#0b1f3a;font-weight:600}
+pre{background:#0b1f3a;color:#eef3f9;border-radius:8px;padding:16px;overflow-x:auto;white-space:pre-wrap;word-break:break-word;min-height:60px;font-size:.85rem}
+footer{max-width:880px;margin:0 auto 32px;padding:0 20px;color:var(--muted);font-size:.9rem}
+footer a{color:var(--navy)}
+.hint{color:var(--muted);font-size:.85rem;margin-top:6px;font-weight:400}
+</style>
+</head>
+<body>
+<header><div class="wrap"><h1>WP Comment Doctor</h1><p>Audit a WordPress comments CSV export for stale unapproved comments, spam patterns, duplicate comments, comments on old posts, authors with no approved comment, and bad data.</p></div></header>
+<main><div class="card">
+<label for="file">Input CSV file</label>
+<input type="file" id="file" accept=".csv,text/csv">
+<label for="input">Or paste the comments CSV export</label>
+<textarea id="input" spellcheck="false" placeholder="Paste a WordPress comments CSV export here, or load the sample."></textarea>
+<label>Options</label>
+<div class="grid">
+<div><label for="opt-links">Max links <span class="hint">(--max-links)</span></label><input type="number" id="opt-links" step="1" value="3"></div>
+<div><label for="opt-age">Max age days <span class="hint">(--max-age-days)</span></label><input type="number" id="opt-age" step="1" value="30"></div>
+<div><label for="opt-words">Min words <span class="hint">(--min-words)</span></label><input type="number" id="opt-words" step="1" value="3"></div>
+<div><label for="opt-asof">As of date <span class="hint">(--as-of)</span></label><input type="text" id="opt-asof" value="2026-11-17"></div>
+</div>
+<div class="row"><button class="gold" id="run" type="button">Run check</button><button class="alt" id="sample" type="button">Load sample</button><button class="alt" id="download" type="button">Download report</button></div>
+<label for="out">Report</label>
+<pre id="out">Your report will appear here.</pre>
+</div></main>
+<footer>
+<p>Built by AamirTechs. <a href="https://aamirtechs.github.io/">All tools</a> | <a href="https://github.com/aamirtechs/wp-comment-doctor">Source</a></p>
+<p>Privacy: this tool runs 100% in your browser, nothing is uploaded.</p>
+</footer>
+<script id="core">
+// Pure logic port of wp_comment_doctor.py. No DOM access in this block.
+// window.runTool(csvText, options) returns the text report string.
+// options: maxLinks, maxAgeDays, minWords, asOf.
+var EMAIL_RE = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
+var LINK_RE = /https?:\/\/\S+|www\.\S+/gi;
+var WORD_RE = /[A-Za-z]+/g;
+var SPAM_PHRASES = [
+  "buy cheap", "viagra", "cialis", "casino", "make money fast",
+  "get rich quick", "free followers", "crypto", "bitcoin",
+  "payday loan", "weight loss", "essay writing service",
+  "click here to win", "limited time offer", "guaranteed income",
+  "act now", "double your money", "work from home"
+];
+var APPROVED_VALUES = ["1", "approved", "approve", "yes"];
+var PENDING_VALUES = ["0", "pending", "hold", "unapproved", "moderated"];
+var SPAM_VALUES = ["spam"];
+var TRASH_VALUES = ["trash", "deleted"];
+var COLUMN_ALIASES = [
+  ["comment_id", ["comment_id", "comment_ID", "id", "ID"]],
+  ["post_id", ["post_id", "comment_post_ID", "post"]],
+  ["post_title", ["post_title", "post", "title"]],
+  ["author", ["author", "comment_author", "comment_author_name", "author_name"]],
+  ["author_email", ["author_email", "comment_author_email", "email"]],
+  ["author_url", ["author_url", "comment_author_url", "url", "website"]],
+  ["date", ["date", "comment_date", "comment_date_gmt", "created", "comment_created"]],
+  ["status", ["status", "comment_approved", "approved", "comment_status"]],
+  ["content", ["content", "comment_content", "comment"]],
+  ["comment_type", ["comment_type", "type", "comment_type_name"]],
+  ["post_date", ["post_date", "post_published", "published", "post_published_date"]]
+];
+var REQUIRED_COLUMNS = ["author", "date", "status", "content"];
+var OLD_POST_DAYS = 365;
+function pyRepr(v) {
+  if (v === null || v === undefined) return "None";
+  var s = String(v);
+  var esc = s.replace(/\\/g, "\\\\").replace(/\n/g, "\\n").replace(/\r/g, "\\r").replace(/\t/g, "\\t");
+  if (s.indexOf("'") >= 0 && s.indexOf('"') < 0) return '"' + esc + '"';
+  return "'" + esc.replace(/'/g, "\\'") + "'";
+}
+function parseCsv(text) {
+  var rows = [], row = [], cur = "", inQ = false, i, c;
+  for (i = 0; i < text.length; i++) {
+    c = text[i];
+    if (inQ) {
+      if (c === '"') {
+        if (text[i + 1] === '"') { cur += '"'; i++; } else { inQ = false; }
+      } else { cur += c; }
+    } else if (c === '"' && cur === "") { inQ = true; }
+    else if (c === ",") { row.push(cur); cur = ""; }
+    else if (c === "\r") {
+      if (text[i + 1] === "\n") i++;
+      row.push(cur); cur = ""; rows.push(row); row = [];
+    } else if (c === "\n") { row.push(cur); cur = ""; rows.push(row); row = []; }
+    else { cur += c; }
+  }
+  if (inQ || cur !== "" || row.length > 0) { row.push(cur); rows.push(row); }
+  return rows;
+}
+function pad2(n) { return (n < 10 ? "0" : "") + n; }
+function daysInMonth(y, m) {
+  return [31, ((y % 4 === 0 && y % 100 !== 0) || y % 400 === 0) ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31][m - 1];
+}
+function makeDate(y, mo, d) {
+  if (mo < 1 || mo > 12 || d < 1 || d > daysInMonth(y, mo)) return null;
+  return { y: y, mo: mo, d: d, ms: Date.UTC(y, mo - 1, d), iso: y + "-" + pad2(mo) + "-" + pad2(d) };
+}
+function parseDate(value) {
+  var v = String(value === null || value === undefined ? "" : value).trim();
+  if (!v) return null;
+  var m;
+  m = /^(\d{4})-(\d{1,2})-(\d{1,2}) (\d{1,2}):(\d{1,2}):(\d{1,2})$/.exec(v);
+  if (m) {
+    if (+m[4] > 23 || +m[5] > 59 || +m[6] > 59) return null;
+    return makeDate(+m[1], +m[2], +m[3]);
+  }
+  m = /^(\d{4})-(\d{1,2})-(\d{1,2})T(\d{1,2}):(\d{1,2}):(\d{1,2})$/.exec(v);
+  if (m) {
+    if (+m[4] > 23 || +m[5] > 59 || +m[6] > 59) return null;
+    return makeDate(+m[1], +m[2], +m[3]);
+  }
+  m = /^(\d{4})-(\d{1,2})-(\d{1,2})$/.exec(v);
+  if (m) return makeDate(+m[1], +m[2], +m[3]);
+  m = /^(\d{4})\/(\d{1,2})\/(\d{1,2})$/.exec(v);
+  if (m) return makeDate(+m[1], +m[2], +m[3]);
+  m = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/.exec(v);
+  if (m) return makeDate(+m[3], +m[2], +m[1]);
+  return null;
+}
+function isValidEmail(email) { return EMAIL_RE.test(String(email).trim()); }
+function countLinks(content) {
+  var found = String(content).match(LINK_RE);
+  return found ? found.length : 0;
+}
+function findSpamPhrase(content) {
+  var lowered = String(content).toLowerCase();
+  for (var i = 0; i < SPAM_PHRASES.length; i++) {
+    if (lowered.indexOf(SPAM_PHRASES[i]) >= 0) return SPAM_PHRASES[i];
+  }
+  return null;
+}
+function wordList(content) { return String(content).match(WORD_RE) || []; }
+function mostCommonWord(content) {
+  var words = wordList(content).filter(function (w) { return w.length >= 4; })
+    .map(function (w) { return w.toLowerCase(); });
+  if (!words.length) return null;
+  var counts = {}, order = [];
+  words.forEach(function (w) {
+    if (!(w in counts)) { counts[w] = 0; order.push(w); }
+    counts[w] += 1;
+  });
+  var best = order[0];
+  order.forEach(function (w) { if (counts[w] > counts[best]) best = w; });
+  return [best, counts[best]];
+}
+function isKeywordStuffed(content) {
+  var result = mostCommonWord(content);
+  if (result === null) return null;
+  var longWords = wordList(content).filter(function (w) { return w.length >= 4; });
+  if (result[1] >= 5 && result[1] * 4 >= longWords.length) return result[0];
+  return null;
+}
+function isGibberish(content) {
+  var s = String(content), letters = [];
+  for (var ch of s) { if (/\p{L}/u.test(ch)) letters.push(ch); }
+  if (!letters.length) return null;
+  var nonAscii = letters.filter(function (c) { return c.codePointAt(0) > 127; }).length;
+  if (nonAscii * 5 > letters.length * 2) return "more than 40% of the letters are non-ASCII";
+  if (/(.)\1{5,}/.test(s)) return "contains a run of the same character repeated 6 or more times";
+  if (/[bcdfghjklmnpqrstvwxz]{10,}/i.test(s)) return "contains a run of 10 or more consonants";
+  return null;
+}
+function normaliseStatus(value) {
+  var v = String(value).trim().toLowerCase();
+  if (APPROVED_VALUES.indexOf(v) >= 0) return "approved";
+  if (PENDING_VALUES.indexOf(v) >= 0) return "pending";
+  if (SPAM_VALUES.indexOf(v) >= 0) return "spam";
+  if (TRASH_VALUES.indexOf(v) >= 0) return "trash";
+  return null;
+}
+function resolveColumns(header) {
+  var lowered = header.map(function (n) { return n.trim().toLowerCase(); });
+  var columns = {};
+  COLUMN_ALIASES.forEach(function (pair) {
+    var canonical = pair[0], aliases = pair[1];
+    for (var i = 0; i < aliases.length; i++) {
+      var idx = lowered.indexOf(aliases[i].toLowerCase());
+      if (idx >= 0) { columns[canonical] = idx; break; }
+    }
+  });
+  return columns;
+}
+function cmpStr(a, b) { return a < b ? -1 : (a > b ? 1 : 0); }
+function Finding(commentId, rule, severity, message) {
+  return { comment_id: commentId, rule: rule, severity: severity, message: message };
+}
+function makeComment(row, columns) {
+  function get(name) {
+    if (!(name in columns)) return "";
+    return row[columns[name]].trim();
+  }
+  var c = {
+    comment_id: get("comment_id"), post_id: get("post_id"),
+    post_title: get("post_title"), author: get("author"),
+    author_email: get("author_email"), author_url: get("author_url"),
+    date_raw: get("date"), status_raw: get("status"),
+    content: get("content"), comment_type: get("comment_type").toLowerCase(),
+    post_date_raw: get("post_date")
+  };
+  c.date = parseDate(c.date_raw);
+  c.post_date = parseDate(c.post_date_raw);
+  c.status = normaliseStatus(c.status_raw);
+  c.label = c.comment_id ? ("#" + c.comment_id) : (c.author ? c.author : "(no id)");
+  if (c.post_title && c.post_id) c.post_label = c.post_title + " (#" + c.post_id + ")";
+  else if (c.post_title) c.post_label = c.post_title;
+  else if (c.post_id) c.post_label = "#" + c.post_id;
+  else c.post_label = "(no post)";
+  c.word_count = wordList(c.content).length;
+  return c;
+}
+function loadAndAudit(text, asOf, maxLinks, maxAgeDays, minWords) {
+  var clean = String(text);
+  if (clean.charCodeAt(0) === 0xFEFF) clean = clean.slice(1);
+  var rows = parseCsv(clean);
+  if (rows.length === 0) throw new Error("file is empty, no header row found");
+  var header = rows[0];
+  var columns = resolveColumns(header);
+  var missing = REQUIRED_COLUMNS.filter(function (n) { return !(n in columns); });
+  if (missing.length) throw new Error("missing required column(s): " + missing.join(", "));
+  var hasPostDate = "post_date" in columns;
+  var hasCommentId = "comment_id" in columns;
+  var comments = [], findings = [], seenIds = {}, seenComments = {};
+  for (var r = 1; r < rows.length; r++) {
+    var row = rows[r], lineNumber = r + 1;
+    if (row.length === 0 || row.every(function (cell) { return !cell.trim(); })) continue;
+    if (row.length !== header.length) {
+      findings.push(Finding("row " + lineNumber, "malformed-row", "error",
+        "row has " + row.length + " fields but the header has " + header.length + ", so the row was skipped"));
+      continue;
+    }
+    var comment = makeComment(row, columns);
+    if (hasCommentId) {
+      if (!comment.comment_id) {
+        findings.push(Finding("row " + lineNumber, "missing-comment-id", "error",
+          "row has no comment id, so the row was skipped"));
+        continue;
+      }
+      if (seenIds[comment.comment_id]) {
+        findings.push(Finding(comment.label, "duplicate-comment-id", "error",
+          "comment id already appears in this export, so this duplicate row was skipped"));
+        continue;
+      }
+      seenIds[comment.comment_id] = 1;
+    }
+    if (!comment.author) {
+      findings.push(Finding(comment.label, "missing-author", "error",
+        "comment has no author, so it cannot be attributed or replied to"));
+    }
+    if (!comment.author_email) {
+      findings.push(Finding(comment.label, "missing-email", "error",
+        "comment has no author email, so the author cannot be contacted"));
+    } else if (!isValidEmail(comment.author_email)) {
+      findings.push(Finding(comment.label, "invalid-email", "error",
+        "email " + pyRepr(comment.author_email) + " is missing or not a valid email address"));
+    }
+    if (comment.date === null) {
+      findings.push(Finding(comment.label, "invalid-date", "warning",
+        "date " + pyRepr(comment.date_raw) + " is not a recognised date"));
+    } else if (comment.date.ms > asOf.ms) {
+      findings.push(Finding(comment.label, "future-date", "warning",
+        "date " + comment.date.iso + " is in the future"));
+    }
+    if (comment.status === null) {
+      findings.push(Finding(comment.label, "unknown-status", "warning",
+        "status " + pyRepr(comment.status_raw) + " is not a recognised WordPress comment status"));
+    }
+    if (comment.comment_type === "pingback" || comment.comment_type === "trackback") {
+      findings.push(Finding(comment.label, "pingback-mixed", "warning",
+        "this is a " + comment.comment_type + ", not a real comment, and it is mixed in with the comments"));
+    }
+    if (!comment.content) {
+      findings.push(Finding(comment.label, "empty-content", "warning", "comment has no content"));
+    } else {
+      var links = countLinks(comment.content);
+      if (links > maxLinks) {
+        findings.push(Finding(comment.label, "too-many-links", "error",
+          "comment contains " + links + " links, above the maximum of " + maxLinks));
+      }
+      var phrase = findSpamPhrase(comment.content);
+      if (phrase) {
+        findings.push(Finding(comment.label, "spam-phrase", "error",
+          "comment contains the known spam phrase " + pyRepr(phrase)));
+      }
+      var stuffed = isKeywordStuffed(comment.content);
+      if (stuffed) {
+        findings.push(Finding(comment.label, "keyword-stuffing", "warning",
+          "the word " + pyRepr(stuffed) + " is repeated so often the comment reads as keyword stuffing"));
+      }
+      var gib = isGibberish(comment.content);
+      if (gib) {
+        findings.push(Finding(comment.label, "gibberish-content", "warning",
+          "comment looks like gibberish: " + gib));
+      }
+      if (comment.word_count < minWords) {
+        findings.push(Finding(comment.label, "thin-comment", "warning",
+          "comment has only " + comment.word_count + " word(s), below the minimum of " + minWords));
+      }
+    }
+    if (comment.status === "pending" && comment.date &&
+        (asOf.ms - comment.date.ms) / 86400000 > maxAgeDays) {
+      var days = (asOf.ms - comment.date.ms) / 86400000;
+      findings.push(Finding(comment.label, "stale-pending", "warning",
+        "comment has been unapproved for " + days + " days, above the maximum of " + maxAgeDays));
+    }
+    if (hasPostDate && comment.post_date && comment.date &&
+        (comment.date.ms - comment.post_date.ms) / 86400000 > OLD_POST_DAYS) {
+      var pdays = (comment.date.ms - comment.post_date.ms) / 86400000;
+      findings.push(Finding(comment.label, "old-post-comment", "warning",
+        "comment is on a post published " + pdays + " days before the comment"));
+    }
+    if (comment.author && comment.content) {
+      var key = comment.author.toLowerCase() + "\u0000" +
+        comment.content.toLowerCase().split(/\s+/).filter(function (p) { return p !== ""; }).join(" ");
+      var normKey = comment.author.toLowerCase() + "\u0000" +
+        " " + comment.content.toLowerCase().split(/\s+/).join(" ") + " ";
+      // Python key: " ".join(content.lower().split()) trims and collapses.
+      var pyKey = comment.author.toLowerCase() + "\u0000" +
+        comment.content.toLowerCase().split(/\s+/).filter(function (p) { return p.length > 0; }).join(" ");
+      if (seenComments[pyKey]) {
+        findings.push(Finding(comment.label, "duplicate-comment", "error",
+          "same author and same content as an earlier comment, so this looks like a duplicate submission"));
+      } else { seenComments[pyKey] = 1; }
+    }
+    comments.push(comment);
+  }
+  return { comments: comments, findings: findings, has_post_date: hasPostDate };
+}
+function analyze(text, asOf, maxLinks, maxAgeDays, minWords) {
+  var loaded = loadAndAudit(text, asOf, maxLinks, maxAgeDays, minWords);
+  var comments = loaded.comments, findings = loaded.findings;
+  var approvedAuthors = {};
+  comments.forEach(function (c) {
+    if (c.status === "approved" && c.author) approvedAuthors[c.author.toLowerCase()] = 1;
+  });
+  var authorSet = {};
+  comments.forEach(function (c) { if (c.author) authorSet[c.author] = 1; });
+  Object.keys(authorSet).sort(cmpStr).forEach(function (author) {
+    if (!approvedAuthors[author.toLowerCase()]) {
+      var count = comments.filter(function (c) { return c.author === author; }).length;
+      findings.push(Finding(author, "no-approved-ever", "warning",
+        "author has no approved comment in this export (" + count +
+        " comment(s), all unapproved, spam, or trash)"));
+    }
+  });
+  var postCounts = {};
+  comments.forEach(function (c) {
+    if (!postCounts[c.post_label]) postCounts[c.post_label] = { comments: 0, approved: 0, pending: 0, spam: 0 };
+    var e = postCounts[c.post_label];
+    e.comments += 1;
+    if (c.status === "approved" || c.status === "pending" || c.status === "spam") e[c.status] += 1;
+  });
+  var posts = Object.keys(postCounts).sort(cmpStr).map(function (label) {
+    var e = postCounts[label];
+    return { post: label, comments: e.comments, approved: e.approved, pending: e.pending, spam: e.spam };
+  });
+  var authorCounts = {};
+  comments.forEach(function (c) {
+    var name = c.author || "(no author)";
+    if (!authorCounts[name]) authorCounts[name] = { comments: 0, approved: 0 };
+    authorCounts[name].comments += 1;
+    if (c.status === "approved") authorCounts[name].approved += 1;
+  });
+  var authors = Object.keys(authorCounts).sort(cmpStr).map(function (name) {
+    return { author: name, comments: authorCounts[name].comments, approved: authorCounts[name].approved };
+  });
+  var statusCounts = { approved: 0, pending: 0, spam: 0, trash: 0 };
+  comments.forEach(function (c) { if (c.status && statusCounts[c.status] !== undefined) statusCounts[c.status] += 1; });
+  var summary = {
+    comments: comments.length,
+    approved: statusCounts.approved, pending: statusCounts.pending,
+    spam: statusCounts.spam, trash: statusCounts.trash,
+    findings: findings.length,
+    errors: findings.filter(function (f) { return f.severity === "error"; }).length,
+    warnings: findings.filter(function (f) { return f.severity === "warning"; }).length,
+    post_date_column: loaded.has_post_date
+  };
+  return { summary: summary, posts: posts, authors: authors, findings: findings };
+}
+function formatText(report) {
+  var lines = [];
+  report.findings.forEach(function (f) {
+    lines.push(f.severity.toUpperCase() + " [" + f.rule + "] " + f.comment_id + ": " + f.message);
+  });
+  if (report.posts.length) {
+    lines.push("");
+    lines.push("Per post:");
+    report.posts.forEach(function (r) {
+      lines.push(r.post + ": " + r.comments + " comment(s), " + r.approved +
+        " approved, " + r.pending + " pending, " + r.spam + " spam");
+    });
+  }
+  if (report.authors.length) {
+    lines.push("");
+    lines.push("Per author:");
+    report.authors.forEach(function (r) {
+      lines.push(r.author + ": " + r.comments + " comment(s), " + r.approved + " approved");
+    });
+  }
+  var s = report.summary;
+  lines.push("");
+  lines.push("Comments: " + s.comments + ", approved: " + s.approved + ", pending: " + s.pending +
+    ", spam: " + s.spam + ", trash: " + s.trash + ", findings: " + s.findings +
+    ", errors: " + s.errors + ", warnings: " + s.warnings);
+  if (!s.post_date_column) {
+    lines.push("Note: no post_date column found, so old-post-comment checks were skipped.");
+  }
+  if (!report.findings.length) lines.push("All comments clean.");
+  return lines.join("\n") + "\n";
+}
+function optInt(v, dflt) {
+  if (v === undefined || v === null || v === "") return dflt;
+  var n = parseInt(String(v), 10);
+  return isNaN(n) ? dflt : n;
+}
+window.runTool = function (inputText, options) {
+  options = options || {};
+  var maxLinks = optInt(options.maxLinks, 3);
+  var maxAgeDays = optInt(options.maxAgeDays, 30);
+  var minWords = optInt(options.minWords, 3);
+  var asOf;
+  if (options.asOf === undefined || options.asOf === null || String(options.asOf).trim() === "") {
+    var now = new Date();
+    asOf = makeDate(now.getFullYear(), now.getMonth() + 1, now.getDate());
+  } else {
+    var raw = String(options.asOf).trim();
+    var mm = /^(\d{4})-(\d{1,2})-(\d{1,2})$/.exec(raw);
+    asOf = mm ? makeDate(+mm[1], +mm[2], +mm[3]) : null;
+    if (asOf === null) {
+      return "error: --as-of must be a YYYY-MM-DD date, got " + pyRepr(String(options.asOf)) + "\n";
+    }
+  }
+  var report;
+  try { report = analyze(inputText || "", asOf, maxLinks, maxAgeDays, minWords); }
+  catch (e) { return "error: " + e.message + "\n"; }
+  return formatText(report);
+};
+</script>
+<script>
+var SAMPLE = "comment_id,post_id,post_title,author,author_email,author_url,date,status,comment_type,content,post_date\n101,12,How to speed up WordPress,Sara Ahmed,sara@example.com,https://sara.example.com,2026-11-15 09:00:00,1,comment,\"Great guide, the caching section saved me a lot of time.\",2026-10-01\n102,12,How to speed up WordPress,Tom Reed,tom@example.com,,2026-09-01 10:00:00,0,comment,\"I tried the steps but my site still loads slowly, any advice?\",2026-10-01\n103,15,Best hosting for WooCommerce,Spammer One,deals@example.com,,2026-11-10 11:00:00,0,comment,\"Buy cheap viagra now, limited time offer, act now for guaranteed income!\",2026-11-01\n104,15,Best hosting for WooCommerce,Link Farmer,links@example.com,,2026-11-12 12:00:00,1,comment,\"Check https://a.example.com and https://b.example.com plus https://c.example.com and https://d.example.com for more details on this topic.\",2026-11-01\n105,12,How to speed up WordPress,Sara Ahmed,sara@example.com,https://sara.example.com,2026-11-16 09:00:00,1,comment,\"Great guide, the caching section saved me a lot of time.\",2026-10-01\n101,12,How to speed up WordPress,Other Person,other@example.com,,2026-11-16 10:00:00,1,comment,\"A completely different comment here.\",2026-10-01\n106,18,WordPress security checklist,,noauthor@example.com,,2026-11-14 09:00:00,1,comment,\"Useful checklist, thank you for sharing this.\",2026-09-01\n107,18,WordPress security checklist,No Email,,,2026-11-14 10:00:00,1,comment,\"I followed the checklist and hardened my login page.\",2026-09-01\n108,18,WordPress security checklist,Bad Mail,not-an-email,,2026-11-14 11:00:00,1,comment,\"Good list, I added two factor auth after reading it.\",2026-09-01\n109,18,WordPress security checklist,Bad Date,baddate@example.com,,not-a-date,1,comment,\"Nice roundup of security tips for beginners.\",2026-09-01\n110,18,WordPress security checklist,Future Person,future@example.com,,2027-01-01 09:00:00,1,comment,\"Looking forward to the updated checklist next year.\",2026-09-01\n111,20,Hello world!,Old Post Fan,oldfan@example.com,,2026-11-01 09:00:00,1,comment,\"Still a classic post after all these years.\",2020-01-01\n112,12,How to speed up WordPress,Pingback Bot,ping@example.com,,2026-11-13 09:00:00,1,pingback,\"Pingback from another blog linking to this post.\",2026-10-01\n113,12,How to speed up WordPress,Empty Poster,empty@example.com,,2026-11-13 10:00:00,1,comment,,2026-10-01\n114,15,Best hosting for WooCommerce,Shorty,shorty@example.com,,2026-11-13 11:00:00,1,comment,\"Nice!\",2026-11-01\n115,15,Best hosting for WooCommerce,Stuffer,stuff@example.com,,2026-11-13 12:00:00,1,comment,\"great great great great great great great great\",2026-11-01\n116,15,Best hosting for WooCommerce,Gibberish Guy,gib@example.com,,2026-11-13 13:00:00,1,comment,\"asdfghjkl qwertyuiop zzzzzzzzzzz\",2026-11-01\n117,12,How to speed up WordPress,Lonely Poster,lonely@example.com,,2026-11-10 09:00:00,0,comment,\"Does anyone know if this works with the latest version?\",2026-10-01\n118,18,WordPress security checklist,Trackback Tom,track@example.com,,2026-11-12 09:00:00,1,trackback,\"Trackback from a site that quoted this article.\",2026-09-01\n119,18,WordPress security checklist,Clean Reader,clean@example.com,,2026-11-14 09:00:00,1,comment,\"Clear and helpful, I bookmarked this for later reference.\",2026-09-01\n120,18,WordPress security checklist,Broken Row,broken@example.com,,2026-11-14 09:00:00,1,comment\n";
+var inputEl = document.getElementById("input");
+var outEl = document.getElementById("out");
+var lastReport = "";
+document.getElementById("file").addEventListener("change", function (ev) {
+  var f = ev.target.files && ev.target.files[0];
+  if (!f) return;
+  var reader = new FileReader();
+  reader.onload = function () { inputEl.value = String(reader.result || ""); };
+  reader.readAsText(f);
+});
+document.getElementById("sample").addEventListener("click", function () {
+  inputEl.value = SAMPLE;
+});
+document.getElementById("run").addEventListener("click", function () {
+  var options = {
+    maxLinks: document.getElementById("opt-links").value,
+    maxAgeDays: document.getElementById("opt-age").value,
+    minWords: document.getElementById("opt-words").value,
+    asOf: document.getElementById("opt-asof").value
+  };
+  try {
+    lastReport = window.runTool(inputEl.value, options);
+    outEl.textContent = lastReport;
+  } catch (e) {
+    lastReport = "ERROR: " + e.message + "\n";
+    outEl.textContent = lastReport;
+  }
+});
+document.getElementById("download").addEventListener("click", function () {
+  var text = lastReport || outEl.textContent;
+  var blob = new Blob([text], { type: "text/plain" });
+  var url = URL.createObjectURL(blob);
+  var a = document.createElement("a");
+  a.href = url;
+  a.download = "wp-comment-report.txt";
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+});
+</script>
+</body>
+</html>

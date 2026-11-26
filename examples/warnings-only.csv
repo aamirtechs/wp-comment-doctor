@@ -1,0 +1,5 @@
+comment_id,post_id,post_title,author,author_email,author_url,date,status,comment_type,content,post_date
+301,12,How to speed up WordPress,Dana,dana@example.com,,2026-11-15 09:00:00,1,comment,"Great guide, thank you for writing this up so clearly.",2026-10-01
+302,12,How to speed up WordPress,Dana,dana@example.com,,2026-09-01 10:00:00,0,comment,"I tried the steps but my site still loads slowly, any advice?",2026-10-01
+303,12,How to speed up WordPress,Eli,eli@example.com,,2026-11-14 09:00:00,1,comment,"Nice!",2026-10-01
+304,12,How to speed up WordPress,Fay,fay@example.com,,2026-11-13 09:00:00,1,pingback,"Pingback from another blog linking to this post.",2026-10-01

@@ -1,0 +1,22 @@
+comment_id,post_id,post_title,author,author_email,author_url,date,status,comment_type,content,post_date
+101,12,How to speed up WordPress,Sara Ahmed,sara@example.com,https://sara.example.com,2026-11-15 09:00:00,1,comment,"Great guide, the caching section saved me a lot of time.",2026-10-01
+102,12,How to speed up WordPress,Tom Reed,tom@example.com,,2026-09-01 10:00:00,0,comment,"I tried the steps but my site still loads slowly, any advice?",2026-10-01
+103,15,Best hosting for WooCommerce,Spammer One,deals@example.com,,2026-11-10 11:00:00,0,comment,"Buy cheap viagra now, limited time offer, act now for guaranteed income!",2026-11-01
+104,15,Best hosting for WooCommerce,Link Farmer,links@example.com,,2026-11-12 12:00:00,1,comment,"Check https://a.example.com and https://b.example.com plus https://c.example.com and https://d.example.com for more details on this topic.",2026-11-01
+105,12,How to speed up WordPress,Sara Ahmed,sara@example.com,https://sara.example.com,2026-11-16 09:00:00,1,comment,"Great guide, the caching section saved me a lot of time.",2026-10-01
+101,12,How to speed up WordPress,Other Person,other@example.com,,2026-11-16 10:00:00,1,comment,"A completely different comment here.",2026-10-01
+106,18,WordPress security checklist,,noauthor@example.com,,2026-11-14 09:00:00,1,comment,"Useful checklist, thank you for sharing this.",2026-09-01
+107,18,WordPress security checklist,No Email,,,2026-11-14 10:00:00,1,comment,"I followed the checklist and hardened my login page.",2026-09-01
+108,18,WordPress security checklist,Bad Mail,not-an-email,,2026-11-14 11:00:00,1,comment,"Good list, I added two factor auth after reading it.",2026-09-01
+109,18,WordPress security checklist,Bad Date,baddate@example.com,,not-a-date,1,comment,"Nice roundup of security tips for beginners.",2026-09-01
+110,18,WordPress security checklist,Future Person,future@example.com,,2027-01-01 09:00:00,1,comment,"Looking forward to the updated checklist next year.",2026-09-01
+111,20,Hello world!,Old Post Fan,oldfan@example.com,,2026-11-01 09:00:00,1,comment,"Still a classic post after all these years.",2020-01-01
+112,12,How to speed up WordPress,Pingback Bot,ping@example.com,,2026-11-13 09:00:00,1,pingback,"Pingback from another blog linking to this post.",2026-10-01
+113,12,How to speed up WordPress,Empty Poster,empty@example.com,,2026-11-13 10:00:00,1,comment,,2026-10-01
+114,15,Best hosting for WooCommerce,Shorty,shorty@example.com,,2026-11-13 11:00:00,1,comment,"Nice!",2026-11-01
+115,15,Best hosting for WooCommerce,Stuffer,stuff@example.com,,2026-11-13 12:00:00,1,comment,"great great great great great great great great",2026-11-01
+116,15,Best hosting for WooCommerce,Gibberish Guy,gib@example.com,,2026-11-13 13:00:00,1,comment,"asdfghjkl qwertyuiop zzzzzzzzzzz",2026-11-01
+117,12,How to speed up WordPress,Lonely Poster,lonely@example.com,,2026-11-10 09:00:00,0,comment,"Does anyone know if this works with the latest version?",2026-10-01
+118,18,WordPress security checklist,Trackback Tom,track@example.com,,2026-11-12 09:00:00,1,trackback,"Trackback from a site that quoted this article.",2026-09-01
+119,18,WordPress security checklist,Clean Reader,clean@example.com,,2026-11-14 09:00:00,1,comment,"Clear and helpful, I bookmarked this for later reference.",2026-09-01
+120,18,WordPress security checklist,Broken Row,broken@example.com,,2026-11-14 09:00:00,1,comment

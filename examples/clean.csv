@@ -1,0 +1,4 @@
+comment_id,post_id,post_title,author,author_email,author_url,date,status,comment_type,content,post_date
+201,12,How to speed up WordPress,Alice,alice@example.com,,2026-11-15 09:00:00,1,comment,"Great guide, the caching section saved me a lot of time.",2026-10-01
+202,12,How to speed up WordPress,Ben,ben@example.com,,2026-11-14 09:00:00,1,comment,"I followed the steps and my site is noticeably faster now.",2026-10-01
+203,18,WordPress security checklist,Cara,cara@example.com,,2026-11-13 09:00:00,1,comment,"Clear checklist, I hardened my login page this morning.",2026-09-01

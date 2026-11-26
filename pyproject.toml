@@ -1,0 +1,17 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "wp-comment-doctor"
+version = "1.0.0"
+description = "Audit a WordPress comments CSV export: stale unapproved comments, spam patterns, duplicate comments, old-post comments, authors with no approved comment"
+readme = "README.md"
+license = { text = "MIT" }
+requires-python = ">=3.10"
+
+[project.scripts]
+wp-comment-doctor = "wp_comment_doctor:main_entry"
+
+[tool.setuptools]
+py-modules = ["wp_comment_doctor"]
