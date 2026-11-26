@@ -67,6 +67,10 @@ wp comment list --format=csv --fields=comment_ID,comment_post_ID,comment_author,
 
 ## What it checks
 
+Every finding includes a short suggested `action` so a
+moderator can work through the queue without guessing the
+next step.
+
 Errors, the ones that are live spam or break the audit:
 
 * `spam-phrase`: the comment contains a known spam phrase
@@ -94,14 +98,15 @@ Errors, the ones that are live spam or break the audit:
 Warnings, comments worth following up:
 
 * `stale-pending`: a comment unapproved for more than
-  `--max-age-days` (default 30).
+  `--max-age-days` (default 30). Action: "Approve or trash it."
 * `no-approved-ever`: an author with no approved comment in
   the whole export. One finding per author, not one per
   comment, so a chronic non-approved author does not flood
-  the report.
+  the report. Action: "Review the author's comments before approving."
 * `old-post-comment`: a comment on a post published more than
   365 days before the comment. Needs the `post_date` column;
   without it the check is skipped and a note line says so.
+  Action: "Review and approve, close, or trash it."
 * `pingback-mixed`: a pingback or trackback sitting in with
   the real comments.
 * `keyword-stuffing`: one word of four or more letters appears
@@ -234,19 +239,22 @@ Captured output (first findings and summary):
     "comment_id": "#102",
     "rule": "stale-pending",
     "severity": "warning",
-    "message": "comment has been unapproved for 77 days, above the maximum of 30"
+    "message": "comment has been unapproved for 77 days, above the maximum of 30",
+    "action": "Approve or trash it."
   },
   {
     "comment_id": "#103",
     "rule": "spam-phrase",
     "severity": "error",
-    "message": "comment contains the known spam phrase 'buy cheap'"
+    "message": "comment contains the known spam phrase 'buy cheap'",
+    "action": "Mark as spam or trash it."
   },
   {
     "comment_id": "#104",
     "rule": "too-many-links",
     "severity": "error",
-    "message": "comment contains 4 links, above the maximum of 3"
+    "message": "comment contains 4 links, above the maximum of 3",
+    "action": "Mark as spam or trash it."
   }
 ]
 ```
